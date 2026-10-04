@@ -1,0 +1,67 @@
+{
+  "name": "MVP - Assistente de Investimentos Educacional",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "assistente-investimentos", "responseMode": "lastNode", "options": {}},
+      "id": "webhook-entrada",
+      "name": "Webhook - Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, 0],
+      "webhookId": "assistente-investimentos"
+    },
+    {
+      "parameters": {"jsCode": "const body = $json.body ?? $json;\nconst question = String(body.question ?? '').trim();\nif (question.length < 10) throw new Error('A pergunta deve possuir pelo menos 10 caracteres.');\nreturn [{ json: { question, asset: body.asset ?? 'não informado', investor_profile: body.investor_profile ?? 'não informado', horizon: body.horizon ?? 'não informado', received_at: new Date().toISOString() } }];"},
+      "id": "code-validacao",
+      "name": "Code - Validar briefing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 0]
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{$env.COLAB_ANALYSIS_URL || 'https://SEU-ENDPOINT-COLAB/analisar'}}", "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json) }}", "options": {"timeout": 30000}},
+      "id": "http-colab",
+      "name": "HTTP - Google Colab",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-420, 0]
+    },
+    {
+      "parameters": {"jsCode": "const result = $json;\nreturn [{ json: { ...result, subject: `Briefing educativo: ${result.asset ?? 'análise solicitada'}`, email_body: JSON.stringify(result, null, 2) } }];"},
+      "id": "code-formatacao",
+      "name": "Code - Formatador",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 0]
+    },
+    {
+      "parameters": {"fromEmail": "={{$env.GMAIL_FROM}}", "toEmail": "={{$env.GMAIL_TO}}", "subject": "={{$json.subject}}", "emailType": "text", "message": "={{$json.email_body}}", "options": {}},
+      "id": "gmail-saida",
+      "name": "Gmail - Enviar briefing",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [100, 0],
+      "credentials": {"gmailOAuth2": {"id": "CONFIGURE_NO_N8N", "name": "Gmail - Projeto"}}
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={{ JSON.stringify({status: 'processed', message: 'Briefing educativo enviado', disclaimer: 'Não constitui recomendação personalizada.'}) }}", "options": {}},
+      "id": "resposta-final",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [360, 0]
+    }
+  ],
+  "connections": {
+    "Webhook - Entrada": {"main": [[{"node": "Code - Validar briefing", "type": "main", "index": 0}]]},
+    "Code - Validar briefing": {"main": [[{"node": "HTTP - Google Colab", "type": "main", "index": 0}]]},
+    "HTTP - Google Colab": {"main": [[{"node": "Code - Formatador", "type": "main", "index": 0}]]},
+    "Code - Formatador": {"main": [[{"node": "Gmail - Enviar briefing", "type": "main", "index": 0}]]},
+    "Gmail - Enviar briefing": {"main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "mvp-assistente-investimentos-v1",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
